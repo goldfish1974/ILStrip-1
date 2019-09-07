@@ -82,7 +82,7 @@ namespace BrokenEvent.ILStrip
         Logger.LogMessage(msg);
     }
 
-    private void WalkCustomAttributes(Collection<CustomAttribute> customAttributes)
+    private void WalkCustomAttributes(IList<CustomAttribute> customAttributes)
     {
       int i = 0;
       while (i < customAttributes.Count)
@@ -93,6 +93,15 @@ namespace BrokenEvent.ILStrip
         else
         {
           AddUsedType(attribute.AttributeType);
+
+          foreach (CustomAttributeArgument argument in attribute.ConstructorArguments)
+          {
+            AddUsedType(argument.Type);
+            TypeReference valueRef = argument.Value as TypeReference;
+            if (valueRef != null)
+              AddUsedType(valueRef);
+          }
+
           i++;
         }
       }
@@ -148,12 +157,15 @@ namespace BrokenEvent.ILStrip
       }
 
       foreach (GenericParameter parameter in method.GenericParameters)
+      {
+        WalkCustomAttributes(parameter.CustomAttributes);
         AddUsedType(parameter.DeclaringType);
+      }
 
       foreach (ParameterDefinition parameter in method.Parameters)
       {
-        AddUsedType(parameter.ParameterType);
         WalkCustomAttributes(parameter.CustomAttributes);
+        AddUsedType(parameter.ParameterType);
       }
 
       AddUsedType(method.ReturnType);
@@ -308,15 +320,11 @@ namespace BrokenEvent.ILStrip
       if (typeDef.Module != definition.MainModule)
       {
         if (!usedReferences.Contains(typeDef.Module))
-        {
-          //Log($"Reference used: {typeDef.Module.FullyQualifiedName}");
           usedReferences.Add(typeDef.Module);
-        }
         return;
       }
 
-      foreach (CustomAttribute attribute in typeDef.CustomAttributes)
-        AddUsedType(attribute.AttributeType);
+      WalkCustomAttributes(typeDef.CustomAttributes);
 
       if (usedTypesCache.Contains(typeDef))
         return;
